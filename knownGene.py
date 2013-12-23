@@ -142,10 +142,10 @@ class RegionNode(object):
     def overlaps(self, start, end):
         if self.local_overlap( start, end ):
             return True
-        elif self.start > end:
+        elif self.start >= end:
             if self.left: return self.left.overlaps( start, end )
             else: return False
-        elif self.end < start:
+        elif self.end <= start:
             if self.right: return self.right.overlaps( start, end )
             else: return False
         else:
@@ -160,14 +160,28 @@ class RegionNode(object):
             if self.right:
                 overlapping_regions.extend( self.right.overlapping_regions( start, end ) )
             return overlapping_regions
-        elif self.start > end:
+        elif self.start >= end:
             if self.left: return self.left.overlapping_regions( start, end )
             else: return [] # Equivalent to False, but compatible with list extension
-        elif self.end < start:
+        elif self.end <= start:
             if self.right: return self.right.overlapping_regions( start, end )
             else: return [] # Equivalent to False, but compatible with list extension
         else:
             sys.exit("overlapping regions error. Impossible overlap comparison.")
+
+    def dist_to_closest(self, start, end):
+        if self.local_overlap( start, end ):
+            return 0
+        elif self.start >= end:
+            dist = self.start - end + 1
+            if self.left: return min(dist, self.left.dist_to_closest( start, end ))
+            else: return dist
+        elif self.end <= start:
+            dist = start - self.end + 1
+            if self.right: return min(dist, self.right.overlaps( start, end ))
+            else: return dist
+        else:
+            sys.exit("dist_to_closest error. Impossible overlap comparison.")
 
 class RegionBST(object):
     def __init__(self, knownGene_file, region_type):
