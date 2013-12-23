@@ -1,7 +1,32 @@
 import sys,time
 from collections import defaultdict
 
-knownGene_file = '/home/hawkjo/genomes/hg19/knownGene.txt'
+class GenomicRegion(object):
+    """A contiguous region of the genome, along with capability to store the names of any genes it may overlap"""
+    def __init__(self, gene_names, chrom, start, end):
+        self.geneNames = set(gene_names)
+        self.chrom = chrom
+        self.start = start
+        self.end = end
+
+    def merge(self, region):
+        if self.chrom != region.chrom: return 
+        self.geneNames.union( region.geneNames )
+        self.start = min( self.start, region.start )
+        self.end = max( self.end, region.end )
+
+    def can_merge(self, region):
+        if self.chrom != region.chrom:
+            return False
+        elif self.start <= region.start <= self.end or \
+                self.start <= region.end <= self.end or \
+                region.start <= self.start <= region.end:
+            # Definition of can_merge here includes the possibility of two regions
+            # lying immediately next to each other but not having any bases in common.
+            # The math above is due to the half-open convention of start and end.
+            return True
+        else:
+            return False
 
 class Gene(object):
     def __init__(self,line=None):
@@ -22,36 +47,38 @@ class Gene(object):
         self.exonCount = int(var[7])
         self.exonStarts = [int(s) for s in var[8].split(',')[:self.exonCount]]
         self.exonEnds = [int(s) for s in var[9].split(',')[:self.exonCount]]
-        self.exons = []
         self.introns = []
+        for intron_start, intron_end in zip(self.exonEnds, self.exonStarts[1:]):
+            self.introns.append( GenomicRegion(self.name, self.chrom, intron_start, intron_end) )
+        self.exons = []
         self.CDSs = []
         self.UTRs = []
         for start, end in zip(self.exonStarts, self.exonEnds):
-            self.exons.append( Exon(self.name, self.chrom, start, end ) )
+            self.exons.append( GenomicRegion(self.name, self.chrom, start, end ) )
 
             # Now to break the exons up into coding and non-coding regions
             if self.cdsStart == self.cdsEnd:
                 # Non-coding gene. All exons are UTRs
-                self.UTRs.append( Exon(self.name, self.chrom, start, end ) )
+                self.UTRs.append( GenomicRegion(self.name, self.chrom, start, end ) )
             elif start >= self.cdsStart and end <= self.cdsEnd:
                 # Exon entirely within coding region
-                self.CDSs.append( Exon(self.name, self.chrom, start, end ) )
+                self.CDSs.append( GenomicRegion(self.name, self.chrom, start, end ) )
             elif start < self.cdsStart and self.cdsStart < end <= self.cdsEnd:
                 # Exon has coding region and 5' UTR
-                self.UTRs.append( Exon(self.name, self.chrom, start, self.cdsStart ) )
-                self.CDSs.append( Exon(self.name, self.chrom, self.cdsStart, end ) )
+                self.UTRs.append( GenomicRegion(self.name, self.chrom, start, self.cdsStart ) )
+                self.CDSs.append( GenomicRegion(self.name, self.chrom, self.cdsStart, end ) )
             elif self.cdsStart <= start < self.cdsEnd and end > self.cdsEnd:
                 # Exon has coding reigon and 3' UTR
-                self.CDSs.append( Exon(self.name, self.chrom, start, self.cdsEnd ) )
-                self.UTRs.append( Exon(self.name, self.chrom, self.cdsEnd, end ) )
+                self.CDSs.append( GenomicRegion(self.name, self.chrom, start, self.cdsEnd ) )
+                self.UTRs.append( GenomicRegion(self.name, self.chrom, self.cdsEnd, end ) )
             elif start < self.cdsStart < self.cdsEnd < end:
                 # Exon has coding region and both 5' and 3' UTRs
-                self.UTRs.append( Exon(self.name, self.chrom, start, self.cdsStart ) )
-                self.CDSs.append( Exon(self.name, self.chrom, self.cdsStart, self.cdsEnd ) )
-                self.UTRs.append( Exon(self.name, self.chrom, self.cdsEnd, end ) )
+                self.UTRs.append( GenomicRegion(self.name, self.chrom, start, self.cdsStart ) )
+                self.CDSs.append( GenomicRegion(self.name, self.chrom, self.cdsStart, self.cdsEnd ) )
+                self.UTRs.append( GenomicRegion(self.name, self.chrom, self.cdsEnd, end ) )
             else:
                 # Coding region exists but does not overlap exon
-                self.UTRs.append( Exon(self.name, self.chrom, start, end ) )
+                self.UTRs.append( GenomicRegion(self.name, self.chrom, start, end ) )
 
     def __str__(self):
         return "%s %s %s %d %d %d %d %d %s %s" % \
@@ -60,82 +87,47 @@ class Gene(object):
                     ','.join(str(start) for start in self.exonStarts),
                     ','.join(str(end) for end in self.exonEnds) )
 
-def knownGene_as_dict():
+def knownGene_as_dict(knownGene_file):
     genes = {}
     for line in open(knownGene_file):
         gene = Gene(line)
         genes[gene.name] = gene
     return genes
 
-def knownGene_as_list():
+def knownGene_as_list(knownGene_file):
     return [Gene(line) for line in open(knownGene_file)]
 
-class Exon(object):
-    """Simple exon object with geneName, chrom, start, and end."""
-    def __init__(self, gene_name, chrom, start, end):
-        self.geneName = gene_name
-        self.chrom = chrom
-        self.start = start
-        self.end = end
+def get_all_sorted_regions(knownGene_file, region_type):
+    regions = defaultdict(list)
+    for gene in knownGene_as_list(knownGene_file):
+        regions[gene.chrom].extend( getattr(gene, region_type) )
+    for chrom in regions.keys():
+        regions[chrom].sort(key = lambda region: region.start)
+    return regions
 
-def get_all_sorted_exons():
-    exons = defaultdict(list)
-    for gene in knownGene_as_list():
-        exons[gene.chrom].extend(gene.exons)
-    for chrom in exons.keys():
-        exons[chrom].sort(key = lambda exon: exon.start)
-    return exons
-
-class ExonRegion(object):
-    """A contiguous region where every base is covered by an exon"""
-    def __init__(self, exon):
-        self.geneNames = set(exon.geneName)
-        self.chrom = exon.chrom
-        self.start = exon.start
-        self.end = exon.end
-
-    def add(self, exon):
-        if self.chrom != exon.chrom: return 
-        self.geneNames.add( exon.geneName )
-        self.start = min( self.start, exon.start )
-        self.end = max( self.end, exon.end )
-
-    def should_add(self, exon):
-        if self.chrom != exon.chrom:
-            return False
-        elif self.start <= exon.start <= self.end or \
-                self.start <= exon.end <= self.end or \
-                exon.start <= self.start <= exon.end:
-            # Definition of should_add here includes the possibility of two exons
-            # lying immediately next to each other but not having any bases in common.
-            # The math above is due to the half-open convention of start and end.
-            return True
-        else:
-            return False
-
-def get_sorted_disjoint_exon_regions():
-    exon_regions = defaultdict(list)
-    for chrom, exons in get_all_sorted_exons().items():
-        for exon in exons:
-            if exon_regions[chrom] and exon_regions[chrom][-1].should_add( exon ):
-                exon_regions[chrom][-1].add( exon )
+def get_sorted_disjoint_regions(knownGene_file, region_type):
+    sorted_disjoint_regions = defaultdict(list)
+    for chrom, regions in get_all_sorted_regions(knownGene_file, region_type).items():
+        for region in regions:
+            if sorted_disjoint_regions[chrom] and sorted_disjoint_regions[chrom][-1].can_merge( region ):
+                sorted_disjoint_regions[chrom][-1].merge( region )
             else:
-                exon_regions[chrom].append( ExonRegion(exon) )
-    return exon_regions
+                sorted_disjoint_regions[chrom].append( region )
+    return sorted_disjoint_regions
 
-class ExonRegionNode(object):
-    def __init__(self, sorted_exon_regions_list):
-        mid = int(len(sorted_exon_regions_list)/2)
-        exon_region = sorted_exon_regions_list[mid]
+class RegionNode(object):
+    def __init__(self, sorted_regions_list):
+        mid = int(len(sorted_regions_list)/2)
+        exon_region = sorted_regions_list[mid]
         self.geneNames = exon_region.geneNames
         self.chrom = exon_region.chrom
         self.start = exon_region.start
         self.end = exon_region.end
-        if len( sorted_exon_regions_list[:mid] ) > 0:
-            self.left = ExonRegionNode( sorted_exon_regions_list[:mid] )
+        if len( sorted_regions_list[:mid] ) > 0:
+            self.left = RegionNode( sorted_regions_list[:mid] )
         else: self.left = None
-        if len( sorted_exon_regions_list[mid+1:] ) > 0:
-            self.right = ExonRegionNode( sorted_exon_regions_list[mid+1:] )
+        if len( sorted_regions_list[mid+1:] ) > 0:
+            self.right = RegionNode( sorted_regions_list[mid+1:] )
         else: self.right = None
 
     def local_overlap(self, start, end):
@@ -163,42 +155,40 @@ class ExonRegionNode(object):
         if self.local_overlap( start, end ):
             overlapping_regions = []
             if self.left:
-                overlapping_regions.extend( self.left.overlaps( start, end ) )
+                overlapping_regions.extend( self.left.overlapping_regions( start, end ) )
             overlapping_regions.append( (self.start, self.end) )
             if self.right:
-                overlapping_regions.extend( self.right.overlaps( start, end ) )
+                overlapping_regions.extend( self.right.overlapping_regions( start, end ) )
             return overlapping_regions
         elif self.start > end:
-            if self.left: return self.left.overlaps( start, end )
+            if self.left: return self.left.overlapping_regions( start, end )
             else: return [] # Equivalent to False, but compatible with list extension
         elif self.end < start:
-            if self.right: return self.right.overlaps( start, end )
+            if self.right: return self.right.overlapping_regions( start, end )
             else: return [] # Equivalent to False, but compatible with list extension
         else:
-            sys.exit("overlaps error. Impossible overlap comparison.")
+            sys.exit("overlapping regions error. Impossible overlap comparison.")
 
-    def inorderwalk(self):
-        if self.left:
-            for x in self.left.inorderwalk(): yield x
-        yield self
-        if self.right:
-            for x in self.right.inorderwalk(): yield x
-
-class ExonRegionBST(object):
-    def __init__(self):
-        self.exon_region_bst = {}
-        for chrom, sorted_exon_region_list in get_sorted_disjoint_exon_regions().items():
-            self.exon_region_bst[chrom] = ExonRegionNode( sorted_exon_region_list )
+class RegionBST(object):
+    def __init__(self, knownGene_file, region_type):
+        self.region_bst = {}
+        for chrom, sorted_region_list in get_sorted_disjoint_regions(knownGene_file, region_type).items():
+            self.region_bst[chrom] = RegionNode( sorted_region_list )
 
     def overlaps(self, chrom, start, end):
-        if chrom not in self.exon_region_bst: return False
-        else: return self.exon_region_bst[chrom].overlaps( start, end )
+        if chrom not in self.region_bst: return False
+        else: return self.region_bst[chrom].overlaps( start, end )
+
+    def overlapping_regions(self, chrom, start, end):
+        if chrom not in self.region_bst: return []
+        else: return self.region_bst[chrom].overlapping_regions( start, end )
 
 if __name__ == "__main__":
     print "Starting..."
+    knownGene_file = '/home/hawkjo/genomes/hg19/knownGene.txt'
     start_time = time.time()
-    exon_bst = ExonRegionBST()
+    exon_bst = RegionBST(knownGene_file, 'exons')
     print "Build time: %f sec" % (time.time() - start_time)
-    print exon_bst.exon_region_bst.keys()
-    print exon_bst.overlaps( 'chr1', 2000000,20000000)
-    print exon_bst.overlaps( 'chr1', 2000,2100)
+    print exon_bst.region_bst.keys()
+    print exon_bst.overlapping_regions( 'chr1', 2000000,20000000)
+    print exon_bst.overlapping_regions( 'chr1', 2000,2100)
