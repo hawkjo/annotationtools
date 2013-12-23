@@ -197,6 +197,13 @@ class RegionBST(object):
         if chrom not in self.region_bst: return []
         else: return self.region_bst[chrom].overlapping_regions( start, end )
 
+    def dist_to_closest(self, chrom, start, end):
+        if chrom not in self.region_bst: return -1
+        else: 
+            dist = self.region_bst[chrom].overlaps( start, end )
+            if dist < 0: sys.exit("Negative distance on same chromosome reported")
+            return dist
+
 if __name__ == "__main__":
     print "Starting..."
     knownGene_file = '/home/hawkjo/genomes/hg19/knownGene.txt'
