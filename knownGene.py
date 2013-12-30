@@ -4,7 +4,13 @@ from collections import defaultdict
 class GenomicRegion(object):
     """A contiguous region of the genome, along with capability to store the names of any genes it may overlap"""
     def __init__(self, gene_names, chrom, start, end):
-        self.geneNames = set(gene_names)
+        if type(gene_names) == str:
+            self.geneNames = set([gene_names])
+        elif type(gene_names) == list:
+            self.geneNames = set(gene_names)
+        elif type(gene_name) == set:
+            self.geneNames = gene_names
+        else: sys.exit( "Invalid input type for geneNames" )
         self.chrom = chrom
         self.start = start
         self.end = end
@@ -169,6 +175,24 @@ class RegionNode(object):
         else:
             sys.exit("overlapping regions error. Impossible overlap comparison.")
 
+    def overlapping_genes(self, start, end):
+        if self.local_overlap( start, end ):
+            overlapping_genes = []
+            if self.left:
+                overlapping_genes.extend( self.left.overlapping_genes( start, end ) )
+            overlapping_genes.extend( self.geneNames )
+            if self.right:
+                overlapping_genes.extend( self.right.overlapping_genes( start, end ) )
+            return overlapping_genes
+        elif self.start >= end:
+            if self.left: return self.left.overlapping_genes( start, end )
+            else: return [] # Equivalent to False, but compatible with list extension
+        elif self.end <= start:
+            if self.right: return self.right.overlapping_genes( start, end )
+            else: return [] # Equivalent to False, but compatible with list extension
+        else:
+            sys.exit("overlapping genes error. Impossible overlap comparison.")
+
     def dist_to_closest(self, start, end):
         if self.local_overlap( start, end ):
             return 0
@@ -197,6 +221,10 @@ class RegionBST(object):
         if chrom not in self.region_bst: return []
         else: return self.region_bst[chrom].overlapping_regions( start, end )
 
+    def overlapping_genes(self, chrom, start, end):
+        if chrom not in self.region_bst: return []
+        else: return self.region_bst[chrom].overlapping_genes( start, end )
+
     def dist_to_closest(self, chrom, start, end):
         if chrom not in self.region_bst: return -1
         else: 
@@ -208,8 +236,44 @@ if __name__ == "__main__":
     print "Starting..."
     knownGene_file = '/home/hawkjo/genomes/hg19/knownGene.txt'
     start_time = time.time()
-    exon_bst = RegionBST(knownGene_file, 'exons')
+    cds_bst = RegionBST(knownGene_file, 'CDSs')
     print "Build time: %f sec" % (time.time() - start_time)
-    print exon_bst.region_bst.keys()
-    print exon_bst.overlapping_regions( 'chr1', 2000000,20000000)
-    print exon_bst.overlapping_regions( 'chr1', 2000,2100)
+
+    if False:
+        import pickle
+        with open('cds_bst.pkl','w') as out:
+            pickle.dump( cds_bst, out, pickle.HIGHEST_PROTOCOL )
+
+    rand_cds = []
+    for line in open('test_knownGene/rand_cds.txt'):
+        chrom, start, end = line.strip().split()
+        rand_cds.append( (chrom, int(start), int(end) ) )
+    rand_intron = []
+    for line in open('test_knownGene/rand_introns.txt'):
+        chrom, start, end = line.strip().split()
+        rand_intron.append( (chrom, int(start), int(end) ) )
+
+    cds_found = 0
+    start_time = time.time()
+    for cds in rand_cds:
+        if cds_bst.overlaps( *cds ):
+            cds_found += 1
+    print "%d of 76 CDSs found" % (cds_found)   # 100 CDSs are tested, but 24 of them 
+                                                # are for RNA genes, which should be ignored
+    print "CDS testing time: %f sec" % (time.time() - start_time)
+
+    start_time = time.time()
+    knownGene_dict = knownGene_as_dict(knownGene_file)
+    print "knownGene_as_dict time: %f sec" % (time.time() - start_time)
+
+    start_time = time.time()
+    intron_found = 0
+    for intron in rand_intron:
+        if cds_bst.overlaps( *intron ):
+            print
+            print intron
+            for gene in cds_bst.overlapping_genes( *intron ):
+                print knownGene_dict[gene]
+            intron_found += 1
+    print "%d of %d introns found" % (intron_found , len(rand_intron))
+    print "Intron testing time: %f sec" % (time.time() - start_time)
