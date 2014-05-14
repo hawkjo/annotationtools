@@ -3,13 +3,16 @@ from itertools import izip
 from collections import defaultdict
 
 NCBI_DATA_dir  = '/home/hawkjo/scratch/dbs/NCBI/DATA/'
+gene2refseq_file = os.path.join(NCBI_DATA_dir, 'gene2refseq') 
+
 print 'Reading field names...'
-gene2refseq_fields = [line.strip() for line in \
-        open(os.path.join( NCBI_DATA_dir , 'gene2refseq_fields'))]
+with open(gene2refseq_file) as f:
+    line = f.readline().strip()[9:334]
+    gene2refseq_fields = line.split()
 
 print 'Reading gene2refseq...'
 field_given_value = {}
-for line in open(os.path.join(NCBI_DATA_dir, 'gene2refseq')):
+for line in open(gene2refseq_file):
     values = line.strip().split('\t')
     for field_name, value in izip( gene2refseq_fields, values ):
         field_given_value[value.split('.')[0]] = field_name
