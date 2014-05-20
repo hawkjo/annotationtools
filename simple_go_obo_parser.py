@@ -41,12 +41,13 @@ def parseGOOBO(filename):
                 currentGOTerm = defaultdict(list)
             elif line == "[Typedef]":
                 #Skip [Typedef sections]
+                if currentGOTerm: yield processGOTerm(currentGOTerm)
                 currentGOTerm = None
             else: #Not [Term]
                 #Only process if we're inside a [Term] environment
                 if currentGOTerm is None: continue
                 key, sep, val = line.partition(":")
-                currentGOTerm[key].append(val.strip())
+                currentGOTerm[key].append(val.partition('!')[0].strip())
         #Add last term
         if currentGOTerm is not None:
             yield processGOTerm(currentGOTerm)
