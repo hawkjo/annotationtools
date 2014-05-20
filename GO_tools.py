@@ -1,7 +1,21 @@
+"""
+GO_tools.py
+Version 0.0
+Author: John Hawkins
+
+A set of simple tools for working with the Gene Ontology.
+"""
 import sys
 from simple_go_obo_parser import parseGOOBO
 
 def GO_OBO_to_dict_with_id_as_key(filename, add_alt_id_keys=True):
+    """
+    Returns dictionary where keys are GO ids and values are dictionaries containing all the
+    properties of the given GO term.
+    Keyword arguments:
+        filename:           Filename of GO OBO file.
+        add_alt_id_keys:    (Default True) Bool to create dict entries using alt_ids as keys.
+    """
     GO_dict = {}
     for goTerm in parseGOOBO(filename):
         GO_dict[goTerm['id']] = goTerm
@@ -16,8 +30,15 @@ def GO_OBO_to_dict_with_id_as_key(filename, add_alt_id_keys=True):
     return GO_dict
 
 def slim_id_set_given_go_id_dict(GO_dict, slim_terms_set, include_part_of=True, include_all_relationships=False):
-    """Returns a dict which takes as keys all possible GO ids, including alt_ids, and returns as
-    values the corresponding list of equidistant parents to slim to."""
+    """
+    Returns a dict which takes as keys all possible GO ids, including alt_ids, and returns as values
+    the corresponding list of equidistant parents to slim to.
+    Keyword arguments:
+        GO_dict:                    Dict created with GO_OBO_to_dict_with_id_as_key.
+        slim_terms_set:             Set of GO ids of all key terms to slim to.
+        include_part_of:            (Default True) Bool to use 'part_of' relationships for slimming.
+        include_all_relationships:  (Default False) Bool to use all relationships for slimming.
+    """
     slim_info_given_go_id = {}
     for go_id in GO_dict.keys():
         slim_info_given_go_id[go_id] = {'slims_to_list':set(), 'dist':None}
@@ -76,7 +97,20 @@ def slim_id_set_given_go_id_dict(GO_dict, slim_terms_set, include_part_of=True, 
 
     return slim_id_set_given_go_id
     
-def map2slim(GO_filename, slim_filename, gaf_filename, out_filename):
+def map2slim(GO_filename, slim_filename, gaf_filename, out_filename, include_part_of=True,
+        include_all_relationships=False):
+    """
+    Takes a gaf file and replaces GO ids with slimmed GO ids from slim file.
+    Where GO id slims to more than one slimmed GO id, a line for each GO id is output.
+    Duplicate lines are removed.
+    Keyword arguments:
+        GO_filename:                Filename of GO OBO file.
+        slim_filename:              Filename of slim OBO file.
+        gaf_filename:               Filename for input gaf file.
+        out_filename:               Filename for output gaf file.
+        include_part_of:            (Default True) Bool to use 'part_of' relationships for slimming.
+        include_all_relationships:  (Default False) Bool to use all relationships for slimming.
+    """
     GO_dict = GO_OBO_to_dict_with_id_as_key(GO_filename)
     slim_terms_set = set( GO_OBO_to_dict_with_id_as_key(slim_filename, add_alt_id_keys=False).keys() )
     slim_id_set_given_go_id = slim_id_set_given_go_id_dict(GO_dict, slim_terms_set)
