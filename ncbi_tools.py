@@ -96,3 +96,23 @@ def output_GO_GAF2_file_from_ncbi_geneids( lst_of_gene_ids, filename ):
     print 'Input gene IDs:',len(lst_of_gene_ids)
     print 'Missing symbols:',missing_symbols
     print 'IDs with zero GO entries:',missing_go_entries
+
+def gene_id_given_protein_gi_dict():
+    gene_id_given_protein_gi = {}
+    filename = os.path.join(ncbi_folder, 'gene2accession')
+    with open(filename) as f:
+        next(f)
+        for line in f:
+            var = line.strip().split()
+            gene_id_given_protein_gi[var[6]] = var[1]
+    return gene_id_given_protein_gi
+
+def protein_gi_given_gene_id_dict():
+    protein_gi_given_gene_id = {}
+    filename = os.path.join(ncbi_folder, 'gene2accession')
+    with open(filename) as f:
+        next(f)
+        for line in f:
+            var = line.strip().split()
+            protein_gi_given_gene_id[var[1]] = var[6]
+    return protein_gi_given_gene_id
