@@ -14,13 +14,12 @@ __license__   = "Apache v2.0"
 
 def processGOTerm(goTerm):
     """
-    In an object representing a GO term, replace single-element lists with
-    their only member.
+    In an object representing a GO term, replace id, name, def lists as strings.
     Returns the modified object as a dictionary.
     """
     ret = dict(goTerm) #Input is a defaultdict, might express unexpected behaviour
     for key, value in ret.iteritems():
-        if len(value) == 1:
+        if key in ['id','name','def']:
             ret[key] = value[0]
     return ret
 
