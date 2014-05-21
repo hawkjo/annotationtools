@@ -68,12 +68,9 @@ def GO_OBO_to_dict_with_id_as_key(filename, add_alt_id_keys=True):
     GO_dict = {}
     for goTerm in parseGOOBO(filename):
         GO_dict[goTerm['id']] = goTerm
-        if add_alt_id_keys:
-            if 'alt_id' not in goTerm: 
-                continue
-            else:
-                for alt_id in goTerm['alt_id']:
-                    GO_dict[alt_id] = goTerm
+        if add_alt_id_keys and 'alt_id' in goTerm: 
+            for alt_id in goTerm['alt_id']:
+                 GO_dict[alt_id] = goTerm
     return GO_dict
 
 def slim_id_set_given_go_id_dict(GO_dict, slim_terms_set, include_part_of=True, include_all_relationships=False):
@@ -88,17 +85,18 @@ def slim_id_set_given_go_id_dict(GO_dict, slim_terms_set, include_part_of=True, 
     """
     slim_info_given_go_id = {}
     for go_id in GO_dict.keys():
-        slim_info_given_go_id[go_id] = {'slims_to_list':set(), 'dist':None}
+        slim_info_given_go_id[go_id] = {'slims_to_set':set(), 'dist':None}
 
-    def set_dist(go_id):
-        if slim_info_given_go_id[go_id]['slims_to_list'] and slim_info_given_go_id[go_id]['dist'] is not None: 
+    def set_slim_info(go_id):
+        # Recursive function to dynamically find closest slim key terms
+        if slim_info_given_go_id[go_id]['slims_to_set'] and slim_info_given_go_id[go_id]['dist'] is not None: 
             # Check if term has already been taken care of
             return
 
         elif go_id in slim_terms_set or GO_dict[go_id]['name'] in \
                 ['biological_process', 'molecular_function', 'cellular_component']:
             # Check if go_id is one of the key words
-            slim_info_given_go_id[go_id]['slims_to_list'] = { GO_dict[go_id]['id'] }
+            slim_info_given_go_id[go_id]['slims_to_set'] = { GO_dict[go_id]['id'] }
             slim_info_given_go_id[go_id]['dist'] = 0
 
         else:
@@ -119,20 +117,20 @@ def slim_id_set_given_go_id_dict(GO_dict, slim_terms_set, include_part_of=True, 
                             parent_list.append( rel_id )
 
             for parent in parent_list:
-                set_dist(parent)
+                set_slim_info(parent)
             slim_info_given_go_id[go_id]['dist'] = \
                     min(slim_info_given_go_id[parent]['dist'] + 1 for parent in parent_list)
             for parent in parent_list:
                 if slim_info_given_go_id[go_id]['dist'] == slim_info_given_go_id[parent]['dist'] + 1:
-                    slim_info_given_go_id[go_id]['slims_to_list'].update(
-                            slim_info_given_go_id[parent]['slims_to_list'] )
+                    slim_info_given_go_id[go_id]['slims_to_set'].update(
+                            slim_info_given_go_id[parent]['slims_to_set'] )
 
     for go_id in GO_dict.keys():
-        set_dist(go_id)
+        set_slim_info(go_id)
 
     slim_id_set_given_go_id = {}
     for go_id in GO_dict.keys():
-        slim_id_set_given_go_id[go_id] = slim_info_given_go_id[go_id]['slims_to_list']
+        slim_id_set_given_go_id[go_id] = slim_info_given_go_id[go_id]['slims_to_set']
 
     return slim_id_set_given_go_id
     
@@ -151,17 +149,18 @@ def map2slim(GO_filename, slim_filename, gaf_filename, out_filename, include_par
         include_all_relationships:  (Default False) Bool to use all relationships for slimming.
     """
     GO_dict = GO_OBO_to_dict_with_id_as_key(GO_filename)
-    slim_terms_set = set( GO_OBO_to_dict_with_id_as_key(slim_filename, add_alt_id_keys=False).keys() )
-    slim_id_set_given_go_id = slim_id_set_given_go_id_dict(GO_dict, slim_terms_set)
+    slim_terms_set = set( goTerm['id'] for goTerm in parseGOOBO(slim_filename) )
+    slim_id_set_given_go_id = slim_id_set_given_go_id_dict(GO_dict, slim_terms_set, include_part_of,
+            include_all_relationships)
 
     # First collect all desired output lines in a set to de-duplicate slimmed results.
     lines_to_write = set()
-    headerline = ''
     with open(gaf_filename) as f:
-        # Check first line for header. Occasionally missing.
+        # Check first line for header lines.
+        headerlines = []
         line = f.readline()
-        if line[0] == '!': 
-            headerline = line
+        while line[0] == '!': 
+            headerlines.append( line )
             line = f.readline() 
         while line:
             var = line.strip().split('\t')
@@ -170,7 +169,8 @@ def map2slim(GO_filename, slim_filename, gaf_filename, out_filename, include_par
             line = f.readline()
 
     with open(out_filename,'w') as outfile:
-        outfile.write(headerline)
+        for line in headerlines:
+            outfile.write(line)
         for line in sorted(lines_to_write):
             # First two columns are db and db id, so regular string sorting results in desired output
             outfile.write(line)
@@ -180,20 +180,19 @@ if __name__ == "__main__":
     slim_filename = '/home/hawkjo/scratch/dbs/GO/goslim_generic.obo'
 
     GO_dict = GO_OBO_to_dict_with_id_as_key(GO_filename)
-    slim_terms_set = set( GO_OBO_to_dict_with_id_as_key(slim_filename, add_alt_id_keys=False).keys() )
+    slim_terms_set = set( goTerm['id'] for goTerm in parseGOOBO(slim_filename) )
 
     print 'GO OBO file:',GO_filename
     print 'slim OBO file:',slim_filename
     print 'Number of slim terms:',len(slim_terms_set)
 
-    slim_id_set_given_go_id = slim_id_set_given_go_id_dict(GO_dict, slim_terms_set)
+    slim_id_set_given_go_id = slim_id_set_given_go_id_dict(GO_dict, slim_terms_set,
+            include_part_of=True, include_all_relationships=False)
 
     print 'Len of slim-go set:',len(slim_id_set_given_go_id)
 
     from collections import Counter
-    slim_id_list_hist = Counter()
-    for lst in slim_id_set_given_go_id.values():
-        slim_id_list_hist[ len(lst) ] += 1
+    slim_id_list_hist = Counter(len(lst) for lst in slim_id_set_given_go_id.values() )
     print 'slim list length hist:'
     for k,v in sorted(slim_id_list_hist.items()):
         print '\t',k,v
