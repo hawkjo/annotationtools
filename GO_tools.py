@@ -1,12 +1,61 @@
 """
 GO_tools.py
-Version 0.0
-Author: John Hawkins
 
 A set of simple tools for working with the Gene Ontology.
 """
 import sys
-from simple_go_obo_parser import parseGOOBO
+from collections import defaultdict
+
+__author__      = 'John Hawkins'
+__copyright__   = 'Copyright 2014 John Hawkins'
+__license__     = 'Apache 2.0'
+
+def processGOTerm(goTerm):
+    """
+    In an object representing a GO term, replace id, name, def lists as strings.
+    Returns the modified object as a dictionary.
+    """
+    #-----------------------------------------------------------------------------------------------
+    # This function is taken, with modification, from Uli Koehler, Copyright 2013.
+    # http://techoverflow.net/blog/2013/11/18/a-geneontology-obo-v1.2-parser-in-python/
+    #-----------------------------------------------------------------------------------------------
+    ret = dict(goTerm) #Input is a defaultdict, might express unexpected behaviour
+    for key, value in ret.iteritems():
+        if key in ['id','name','def','namespace']:
+            ret[key] = value[0]
+    return ret
+
+def parseGOOBO(filename):
+    """
+    Parses a Gene Ontology dump in OBO v1.2 format.
+    Yields each 
+    Keyword arguments:
+        filename: The filename to read
+    """
+    #-----------------------------------------------------------------------------------------------
+    # This function is taken, with modification, from Uli Koehler, Copyright 2013.
+    # http://techoverflow.net/blog/2013/11/18/a-geneontology-obo-v1.2-parser-in-python/
+    #-----------------------------------------------------------------------------------------------
+    with open(filename, "r") as infile:
+        currentGOTerm = None
+        for line in infile:
+            line = line.strip()
+            if not line: continue #Skip empty
+            if line == "[Term]":
+                if currentGOTerm: yield processGOTerm(currentGOTerm)
+                currentGOTerm = defaultdict(list)
+            elif line == "[Typedef]":
+                #Skip [Typedef sections]
+                if currentGOTerm: yield processGOTerm(currentGOTerm)
+                currentGOTerm = None
+            else: #Not [Term]
+                #Only process if we're inside a [Term] environment
+                if currentGOTerm is None: continue
+                key, sep, val = line.partition(":")
+                currentGOTerm[key].append(val.partition('!')[0].strip())
+        #Add last term
+        if currentGOTerm is not None:
+            yield processGOTerm(currentGOTerm)
 
 def GO_OBO_to_dict_with_id_as_key(filename, add_alt_id_keys=True):
     """
@@ -20,13 +69,11 @@ def GO_OBO_to_dict_with_id_as_key(filename, add_alt_id_keys=True):
     for goTerm in parseGOOBO(filename):
         GO_dict[goTerm['id']] = goTerm
         if add_alt_id_keys:
-            if 'alt_id' not in goTerm: continue
-            elif type(goTerm['alt_id']) is str:
-                GO_dict[goTerm['alt_id']] = goTerm
-            elif type(goTerm['alt_id']) is list:
+            if 'alt_id' not in goTerm: 
+                continue
+            else:
                 for alt_id in goTerm['alt_id']:
                     GO_dict[alt_id] = goTerm
-            else: sys.exit('Type error of alt_id in ' + goTerm['id'])
     return GO_dict
 
 def slim_id_set_given_go_id_dict(GO_dict, slim_terms_set, include_part_of=True, include_all_relationships=False):
@@ -61,20 +108,12 @@ def slim_id_set_given_go_id_dict(GO_dict, slim_terms_set, include_part_of=True, 
                 if 'is_obsolete' not in GO_dict[go_id]:
                     sys.exit('Non-obsolete non-root term with no parents: ' + GO_dict[go_id]['name'])
                 return
-            elif type(GO_dict[go_id]['is_a']) is str:
-                parent_list = [ GO_dict[go_id]['is_a'] ]
-            elif type(GO_dict[go_id]['is_a']) is list:
-                parent_list = GO_dict[go_id]['is_a']
             else:
-                sys.exit('Type error of is_a: ' + go_id)
+                parent_list = GO_dict[go_id]['is_a']
             # Add 'part_of' and/or all relationships
             if include_part_of or include_all_relationships:
                 if 'relationship' in GO_dict[go_id]:
-                    if type(GO_dict[go_id]['relationship']) == str:
-                        relationship_list = [ GO_dict[go_id]['relationship'] ]
-                    if type(GO_dict[go_id]['relationship']) == list:
-                        relationship_list = GO_dict[go_id]['relationship']
-                    for relationship in relationship_list:
+                    for relationship in GO_dict[go_id]['relationship']:
                         rel_type, rel_id = relationship.split()
                         if rel_type == 'part_of' or include_all_relationships:
                             parent_list.append( rel_id )
@@ -115,17 +154,26 @@ def map2slim(GO_filename, slim_filename, gaf_filename, out_filename, include_par
     slim_terms_set = set( GO_OBO_to_dict_with_id_as_key(slim_filename, add_alt_id_keys=False).keys() )
     slim_id_set_given_go_id = slim_id_set_given_go_id_dict(GO_dict, slim_terms_set)
 
+    # First collect all desired output lines in a set to de-duplicate slimmed results.
+    lines_to_write = set()
+    headerline = ''
+    with open(gaf_filename) as f:
+        # Check first line for header. Occasionally missing.
+        line = f.readline()
+        if line[0] == '!': 
+            headerline = line
+            line = f.readline() 
+        while line:
+            var = line.strip().split('\t')
+            for slim_id in slim_id_set_given_go_id[ var[4] ]:
+                lines_to_write.add( '\t'.join(var[:4] + [ slim_id ] + var[5:]) + '\n' )
+            line = f.readline()
+
     with open(out_filename,'w') as outfile:
-        with open(gaf_filename) as f:
-            outfile.write( f.readline() )
-            for line in f:
-                var = line.strip().split('\t')
-                try:
-                    for slim_id in slim_id_set_given_go_id[ var[4] ]:
-                        outfile.write( '\t'.join(var[:4] + [ slim_id ] + var[5:]) + '\n' )
-                except IndexError:
-                    print var
-                    sys.exit()
+        outfile.write(headerline)
+        for line in sorted(lines_to_write):
+            # First two columns are db and db id, so regular string sorting results in desired output
+            outfile.write(line)
 
 if __name__ == "__main__":
     GO_filename = '/home/hawkjo/scratch/dbs/GO/gene_ontology_ext.obo'
@@ -133,11 +181,14 @@ if __name__ == "__main__":
 
     GO_dict = GO_OBO_to_dict_with_id_as_key(GO_filename)
     slim_terms_set = set( GO_OBO_to_dict_with_id_as_key(slim_filename, add_alt_id_keys=False).keys() )
+
+    print 'GO OBO file:',GO_filename
+    print 'slim OBO file:',slim_filename
     print 'Number of slim terms:',len(slim_terms_set)
 
     slim_id_set_given_go_id = slim_id_set_given_go_id_dict(GO_dict, slim_terms_set)
 
-    print 'Len of slim-go dict:',len(slim_id_set_given_go_id)
+    print 'Len of slim-go set:',len(slim_id_set_given_go_id)
 
     from collections import Counter
     slim_id_list_hist = Counter()
@@ -164,15 +215,3 @@ if __name__ == "__main__":
     for go_id in GO_dict.keys():
         if 'is_a' not in GO_dict[go_id] and len(slim_id_set_given_go_id[go_id]) != 0:
             print '\t',go_id,':',GO_dict[go_id]['name']
-
-    no_defs = 0
-    def_str = 0
-    def_list = 0
-    for go_id in GO_dict.keys():
-        if 'def' not in GO_dict[go_id]:
-            no_defs += 1
-        elif type(GO_dict[go_id]['def']) is str:
-            def_str += 1
-        elif type(GO_dict[go_id]['def']) is list:
-            def_list += 1
-    print 'Def summary (None, One, More): %d, %d, %d' % (no_defs, def_str, def_list)
