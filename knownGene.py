@@ -45,7 +45,7 @@ class Gene(object):
         var = line.strip().split('\t')
         self.name = var[0]
         self.chrom = var[1]
-        self.strand = var[2]
+        self.strand = var[2] # '+' or '-'
         self.txStart = int(var[3])
         self.txEnd = int(var[4])
         self.cdsStart = int(var[5])
