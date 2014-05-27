@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 GO_tools.py
 
@@ -16,7 +17,7 @@ def processGOTerm(goTerm):
     Returns the modified object as a dictionary.
     """
     #-----------------------------------------------------------------------------------------------
-    # This function is taken, with modification, from Uli Koehler, Copyright 2013.
+    # This function is taken with modification from Uli Koehler, Copyright 2013, Apache license 2.0.
     # http://techoverflow.net/blog/2013/11/18/a-geneontology-obo-v1.2-parser-in-python/
     #-----------------------------------------------------------------------------------------------
     ret = dict(goTerm) #Input is a defaultdict, might express unexpected behaviour
@@ -33,7 +34,7 @@ def parseGOOBO(filename):
         filename: The filename to read
     """
     #-----------------------------------------------------------------------------------------------
-    # This function is taken, with modification, from Uli Koehler, Copyright 2013.
+    # This function is taken with modification from Uli Koehler, Copyright 2013, Apache license 2.0.
     # http://techoverflow.net/blog/2013/11/18/a-geneontology-obo-v1.2-parser-in-python/
     #-----------------------------------------------------------------------------------------------
     with open(filename, "r") as infile:
@@ -100,24 +101,14 @@ def slim_id_set_given_go_id_dict(GO_dict, slim_terms_set, include_part_of=True, 
             slim_info_given_go_id[go_id]['dist'] = 0
 
         else:
-            # Create parent list
-            # Start with all 'is_a' relationships
-            if 'is_a' not in GO_dict[go_id]:
-                if 'is_obsolete' not in GO_dict[go_id]:
-                    sys.exit('Non-obsolete non-root term with no parents: ' + GO_dict[go_id]['name'])
-                return
-            else:
-                parent_list = GO_dict[go_id]['is_a']
-            # Add 'part_of' and/or all relationships
-            if include_part_of or include_all_relationships:
-                if 'relationship' in GO_dict[go_id]:
-                    for relationship in GO_dict[go_id]['relationship']:
-                        rel_type, rel_id = relationship.split()
-                        if rel_type == 'part_of' or include_all_relationships:
-                            parent_list.append( rel_id )
+            parent_list = get_go_id_parents(GO_dict, go_id, include_part_of, include_all_relationships)
+            if not parent_list: return
 
             for parent in parent_list:
                 set_slim_info(parent)
+
+            # We set the distance as the minimum distance in hops along the graph to the closest
+            # ancestor slim term and gather the set of all ancestor slim terms at that distance.
             slim_info_given_go_id[go_id]['dist'] = \
                     min(slim_info_given_go_id[parent]['dist'] + 1 for parent in parent_list)
             for parent in parent_list:
@@ -133,7 +124,68 @@ def slim_id_set_given_go_id_dict(GO_dict, slim_terms_set, include_part_of=True, 
         slim_id_set_given_go_id[go_id] = slim_info_given_go_id[go_id]['slims_to_set']
 
     return slim_id_set_given_go_id
-    
+
+def get_go_id_parents(GO_dict, go_id, include_part_of=True, include_all_relationships=False):
+    """
+    Returns immediate parents of given go_id in the GO_dict.
+    Keyword arguments:
+        GO_dict:                    Dict created with GO_OBO_to_dict_with_id_as_key.
+        go_id:                      GO id for which to get parents.
+        include_part_of:            (Default True) Bool to use 'part_of' relationships.
+        include_all_relationships:  (Default False) Bool to use all relationships.
+    """
+    # Start with all 'is_a' relationships
+    parent_list = []
+    if 'is_a' not in GO_dict[go_id]:
+        if 'is_obsolete' not in GO_dict[go_id] and GO_dict[go_id]['name'] not in \
+                    ['biological_process', 'molecular_function', 'cellular_component']:
+            sys.exit('Non-obsolete non-root term with no parents: ' + GO_dict[go_id]['name'])
+    else:
+        parent_list.extend( GO_dict[go_id]['is_a'] )
+    # Add 'part_of' and/or all relationships
+    if include_part_of or include_all_relationships:
+        if 'relationship' in GO_dict[go_id]:
+            for relationship in GO_dict[go_id]['relationship']:
+                rel_type, rel_id = relationship.split()
+                if rel_type == 'part_of' or include_all_relationships:
+                    parent_list.append( rel_id )
+    return parent_list
+
+def traverse_graph_looking_for_target(GO_dict, current_id, target_id, path_before_current_id=[],
+        include_part_of=True, include_all_relationships=False):
+    """
+    One-directional, recursive function to find paths. Use instead the wrapper function
+    find_paths_between.
+    """
+    paths = []
+    for parent in get_go_id_parents(GO_dict, current_id, include_part_of,
+            include_all_relationships):
+        if parent == target_id:
+            paths.append( path_before_current_id + [current_id,target_id] )
+        else:
+            paths.extend( traverse_graph_looking_for_target(GO_dict, parent, target_id, 
+                    path_before_current_id + [current_id], include_part_of,
+                    include_all_relationships) )
+    return paths
+
+def find_paths_between(GO_dict, go_id1, go_id2, include_part_of=True,
+        include_all_relationships=False):
+    """
+    Finds all paths between two go_ids.
+    Keyword arguments:
+        GO_dict:                    Dict created with GO_OBO_to_dict_with_id_as_key.
+        go_id1:                     One desired path endpoint.
+        go_id2:                     The other desired path endpoint.
+        include_part_of:            (Default True) Bool to use 'part_of' for paths.
+        include_all_relationships:  (Default False) Bool to use all relationships for paths.
+    """
+    paths = []
+    paths.extend( traverse_graph_looking_for_target(GO_dict, go_id1, go_id2,
+        include_part_of=include_part_of, include_all_relationships=include_all_relationships) )
+    paths.extend( traverse_graph_looking_for_target(GO_dict, go_id2, go_id1,
+        include_part_of=include_part_of, include_all_relationships=include_all_relationships) )
+    return paths
+
 def map2slim(GO_filename, slim_filename, gaf_filename, out_filename, include_part_of=True,
         include_all_relationships=False):
     """
@@ -189,21 +241,24 @@ if __name__ == "__main__":
     slim_id_set_given_go_id = slim_id_set_given_go_id_dict(GO_dict, slim_terms_set,
             include_part_of=True, include_all_relationships=False)
 
-    print 'Len of slim-go set:',len(slim_id_set_given_go_id)
+    print 'Number of mappable go ids:',len(slim_id_set_given_go_id)
 
     from collections import Counter
     slim_id_list_hist = Counter(len(lst) for lst in slim_id_set_given_go_id.values() )
-    print 'slim list length hist:'
+    print 'Number of go ids which map to given number of slimmed terms:'
+    total_mappings = 0
     for k,v in sorted(slim_id_list_hist.items()):
         print '\t',k,v
+        total_mappings += k*v
+    print 'Total mappings:',total_mappings
 
     print 'Example key-value pairs:'
     maps2self = 0
     for i,(k,v) in enumerate(slim_id_set_given_go_id.items()):
         if i <= 5:
-            print '\t',k,v
+            print '\t',k,'->',v
         if len(v) == 5:
-            print '\t',k,v
+            print '\t',k,'->',v
         if k in v: maps2self += 1
 
     print 'Ids which map to self:',maps2self
