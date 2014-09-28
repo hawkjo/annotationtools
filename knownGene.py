@@ -36,29 +36,31 @@ class GenomicRegion(object):
 
 class Gene(object):
     def __init__(self,line=None, filetype='knownGene'):
-        assert filetype in ['knownGene', 'ensGene'],
+        assert filetype in ['knownGene', 'ensGene'], \
                 'Unknown filetype: %s' % filetype
+        self.filetype = filetype
         if line:
-            self._parse(line, filetype)
+            self._parse(line)
         else:
             sys.exit("No line specified for gene.")
 
     def _parse(self,line):
         var = line.strip().split('\t')
 
-        if filetype == 'knownGene':
+        if self.filetype == 'knownGene':
             self.name, self.chrom, self.strand = var[0:3] # strand is '+' or '-'
             self.txStart, self.txEnd, self.cdsStart, self.cdsEnd, self.exonCount = map(int, var[3:8])
             self.exonStarts = [int(s) for s in var[8].split(',')[:self.exonCount]]
             self.exonEnds = [int(s) for s in var[9].split(',')[:self.exonCount]]
-        elif filetype == 'ensGene':
+        elif self.filetype == 'ensGene':
             self.bin = int(var[0])
             self.name, self.chrom, self.strand = var[1:4] # strand is '+' or '-'
             self.txStart, self.txEnd, self.cdsStart, self.cdsEnd, self.exonCount = map(int, var[4:9])
             self.exonStarts = [int(s) for s in var[9].split(',')[:self.exonCount]]
             self.exonEnds = [int(s) for s in var[10].split(',')[:self.exonCount]]
             self.score = int(var[11])
-            self.name2, self.cdsStartStat, self.cdsEndStat = var[12:]
+            self.name2, self.cdsStartStat, self.cdsEndStat = var[12:15]
+            self.exonFrams = [int(s) for s in var[15].split(',')[:self.exonCount]]
 
         self.introns = []
         for intron_start, intron_end in zip(self.exonEnds, self.exonStarts[1:]):
