@@ -35,24 +35,31 @@ class GenomicRegion(object):
             return False
 
 class Gene(object):
-    def __init__(self,line=None):
+    def __init__(self,line=None, filetype='knownGene'):
+        assert filetype in ['knownGene', 'ensGene'],
+                'Unknown filetype: %s' % filetype
         if line:
-            self._parse(line)
+            self._parse(line, filetype)
         else:
             sys.exit("No line specified for gene.")
 
     def _parse(self,line):
         var = line.strip().split('\t')
-        self.name = var[0]
-        self.chrom = var[1]
-        self.strand = var[2] # '+' or '-'
-        self.txStart = int(var[3])
-        self.txEnd = int(var[4])
-        self.cdsStart = int(var[5])
-        self.cdsEnd = int(var[6])
-        self.exonCount = int(var[7])
-        self.exonStarts = [int(s) for s in var[8].split(',')[:self.exonCount]]
-        self.exonEnds = [int(s) for s in var[9].split(',')[:self.exonCount]]
+
+        if filetype == 'knownGene':
+            self.name, self.chrom, self.strand = var[0:3] # strand is '+' or '-'
+            self.txStart, self.txEnd, self.cdsStart, self.cdsEnd, self.exonCount = map(int, var[3:8])
+            self.exonStarts = [int(s) for s in var[8].split(',')[:self.exonCount]]
+            self.exonEnds = [int(s) for s in var[9].split(',')[:self.exonCount]]
+        elif filetype == 'ensGene':
+            self.bin = int(var[0])
+            self.name, self.chrom, self.strand = var[1:4] # strand is '+' or '-'
+            self.txStart, self.txEnd, self.cdsStart, self.cdsEnd, self.exonCount = map(int, var[4:9])
+            self.exonStarts = [int(s) for s in var[9].split(',')[:self.exonCount]]
+            self.exonEnds = [int(s) for s in var[10].split(',')[:self.exonCount]]
+            self.score = int(var[11])
+            self.name2, self.cdsStartStat, self.cdsEndStat = var[12:]
+
         self.introns = []
         for intron_start, intron_end in zip(self.exonEnds, self.exonStarts[1:]):
             self.introns.append( GenomicRegion(self.name, self.chrom, intron_start, intron_end) )
@@ -93,15 +100,15 @@ class Gene(object):
                     ','.join(str(start) for start in self.exonStarts),
                     ','.join(str(end) for end in self.exonEnds) )
 
-def knownGene_as_dict(knownGene_file):
+def knownGene_as_dict(knownGene_file, filetype='knownGene'):
     genes = {}
     for line in open(knownGene_file):
-        gene = Gene(line)
+        gene = Gene(line, filetype)
         genes[gene.name] = gene
     return genes
 
-def knownGene_as_list(knownGene_file):
-    return [Gene(line) for line in open(knownGene_file)]
+def knownGene_as_list(knownGene_file, filetype='knownGene'):
+    return [Gene(line, filetype) for line in open(knownGene_file)]
 
 def get_all_sorted_regions(knownGene_file, region_type):
     regions = defaultdict(list)
