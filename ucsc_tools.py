@@ -35,7 +35,7 @@ def refseq2ucscname_dict():
     return refseq2ucscname
 
 def ncbi_gene_id_to_ucscname_dict():
-    from ncbi_tools import gene_id_to_refseq_rna_acc_list_dict
+    from NCBItools import gene_id_to_refseq_rna_acc_list_dict
     refseq_list_given_ncbi_id = gene_id_to_refseq_rna_acc_list_dict()
     ucscname_given_refseq = refseq2ucscname_dict()
     ucscname_given_ncbi_id = {}
