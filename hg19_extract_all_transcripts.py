@@ -1,5 +1,6 @@
-import sys, knownGene
+import sys
 from Bio import SeqIO
+import knownGene
 
 print 'Reading in hg19...'
 hg19_file = '/home/hawkjo/genomes/hg19/hg19.fa'
@@ -13,18 +14,19 @@ knownGene_list = knownGene.knownGene_as_list(knownGene_file)
 
 print 'Extracting transcripts...'
 transcript_list = []
-stop_codons = ['TAA','TAG','TGA']
+stop_codons = ['TAA', 'TAG', 'TGA']
 genes_with_start_and_stop_codons = 0
 genes_with_start_codons = 0
 genes_with_stop_codons = 0
 bad_genes = 0
 for gene in knownGene_list:
-    transcript = hg19['chr1'][0:0] # Get sequence record with empty sequence
+    transcript = hg19['chr1'][0:0]  # Get sequence record with empty sequence
     for exon in gene.exons:
         transcript += hg19[exon.chrom][exon.start:exon.end]
     if gene.strand == '-':
         transcript = transcript.reverse_complement()
-    elif gene.strand != '+': sys.exit('Unexpected strand')
+    elif gene.strand != '+':
+        sys.exit('Unexpected strand')
     transcript = transcript.upper()
     transcript.id = gene.name
     transcript.name = gene.name
@@ -73,19 +75,15 @@ for gene in knownGene_list:
         elif has_stop_codon:
             genes_with_stop_codons += 1
         else:
-            #print gene
-            #print start, end, len(transcript)
-            #SeqIO.write([transcript], sys.stdout, 'fasta')
-            #raw_input('Press enter...')
             bad_genes += 1
 
 print 'Writing output...'
 outfile = 'hg19_transcripts.fa'
-SeqIO.write(transcript_list, open(outfile,'w'), 'fasta')
+SeqIO.write(transcript_list, open(outfile, 'w'), 'fasta')
 
 print
 print 'Summary:'
-print 'genes_with_start_and_stop_codons:', genes_with_start_and_stop_codons 
-print 'genes_with_start_codons:', genes_with_start_codons 
-print 'genes_with_stop_codons:', genes_with_stop_codons 
-print 'bad_genes:', bad_genes 
+print 'genes_with_start_and_stop_codons:', genes_with_start_and_stop_codons
+print 'genes_with_start_codons:', genes_with_start_codons
+print 'genes_with_stop_codons:', genes_with_stop_codons
+print 'bad_genes:', bad_genes
