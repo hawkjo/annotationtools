@@ -24,25 +24,25 @@ def reduce_to_longest_isoforms(lst_of_gene_records):
     return longest_isoform_records
 
 
-def ucscname2refseq_dict():
+def build_refseq_given_ucscname_dict():
     knownToRefSeq_file = '/home/hawkjo/scratch/genomes/hg19/annotation/knownToRefSeq.txt'
-    ucscname2refseq = {}
+    refseq_given_ucscname = {}
     for line in open(knownToRefSeq_file):
         var = line.strip().split()
-        ucscname2refseq[var[0]] = var[1]
-    return ucscname2refseq
+        refseq_given_ucscname[var[0]] = var[1]
+    return refseq_given_ucscname
 
 
-def refseq2ucscname_dict():
+def build_ucscname_given_refseq_dict():
     knownToRefSeq_file = '/home/hawkjo/scratch/genomes/hg19/annotation/knownToRefSeq.txt'
-    refseq2ucscname = {}
+    ucscname_given_refseq = {}
     for line in open(knownToRefSeq_file):
         var = line.strip().split()
-        refseq2ucscname[var[1]] = var[0]
-    return refseq2ucscname
+        ucscname_given_refseq[var[1]] = var[0]
+    return ucscname_given_refseq
 
 
-def ncbi_gene_id_to_ucscname_dict():
+def build_ucscname_given_ncbi_gene_id_dict():
     from NCBItools import gene_id_to_refseq_rna_acc_list_dict
     refseq_list_given_ncbi_id = gene_id_to_refseq_rna_acc_list_dict()
     ucscname_given_refseq = refseq2ucscname_dict()

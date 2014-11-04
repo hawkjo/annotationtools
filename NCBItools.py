@@ -1,50 +1,49 @@
 import sys
 import os
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 ncbi_folder = '/home/hawkjo/scratch/dbs/NCBI/DATA/'
 
 
-def refseq_rna_acc2geneid_dict():
+def build_geneid_given_refseq_rna_acc_dict():
     gene2refseq_file = os.path.join(ncbi_folder, 'gene2refseq')
-    refseq2geneid = {}
+    geneid_given_refseq = {}
     with open(gene2refseq_file) as f:
         next(f)
         for line in f:
             var = line.strip().split('\t')
-            refseq2geneid[var[3]] = var[1]
-            refseq2geneid[var[3].split('.')[0]] = var[1]
-    return refseq2geneid
+            geneid_given_refseq[var[3]] = var[1]
+            geneid_given_refseq[var[3].split('.')[0]] = var[1]
+    return geneid_given_refseq
 
 
-def gene_id_to_refseq_rna_acc_list_dict():
+def build_refseq_rna_acc_given_geneid_dict():
     gene2refseq_file = os.path.join(ncbi_folder, 'gene2refseq')
-    geneid2refseq = {}
+    refseq_given_geneid = {}
     with open(gene2refseq_file) as f:
         next(f)
         for line in f:
             var = line.strip().split('\t')
-            geneid2refseq[var[1]] = [var[3], var[3].split('.')[0]]
-    return geneid2refseq
+            refseq_given_geneid[var[1]] = [var[3], var[3].split('.')[0]]
+    return refseq_given_geneid
 
 
-def gene2go_ids_dict():
+def build_GOid_given_gene_dict():
     gene2go_file = os.path.join(ncbi_folder, 'gene2go')
-    gene2go_ids = defaultdict(list)
+    GOid_given_gene = defaultdict(list)
     with open(gene2go_file) as f:
         next(f)
         for line in f:
             var = line.strip().split('\t')
-            gene2go_ids[var[1]].append(var[2])
-    return gene2go_ids
+            GOid_given_gene[var[1]].append(var[2])
+    return GOid_given_gene
 
 
-def gene_id_to_go_entries_dict():
-    from collections import namedtuple
+def build_go_entries_given_gene_id_dict():
     gene2go_entry = namedtuple('gene2go_entry',
                                'tax_id GeneID GO_ID Evidence Qualifier GO_term PubMed Category')
     gene2go_file = os.path.join(ncbi_folder, 'gene2go')
-    gene_id_to_go_entries = defaultdict(list)
+    go_entries_given_gene_id = defaultdict(list)
     with open(gene2go_file) as f:
         next(f)
         for line in f:
@@ -62,26 +61,26 @@ def gene_id_to_go_entries_dict():
             else:
                 sys.exit('Bad Category:\n' + line)
             entry = gene2go_entry(*var)
-            gene_id_to_go_entries[var[1]].append(entry)
-    return gene_id_to_go_entries
+            go_entries_given_gene_id[var[1]].append(entry)
+    return go_entries_given_gene_id
 
 
-def gene_id_to_symbol_dict():
-    gene_id_to_symbol = {}
+def build_symbol_given_gene_id_dict():
     gene_info_file = os.path.join(ncbi_folder, 'gene_info')
+    symbol_given_gene_id = {}
     with open(gene_info_file) as f:
         next(f)
         for line in f:
             var = line.strip().split('\t')
-            gene_id_to_symbol[var[1]] = var[2]
-    return gene_id_to_symbol
+            symbol_given_gene_id[var[1]] = var[2]
+    return symbol_given_gene_id
 
 
 def output_GO_GAF2_file_from_ncbi_geneids(lst_of_gene_ids, filename):
     print 'Reading GO entries...'
-    go_entries_given_gene_id = gene_id_to_go_entries_dict()
+    go_entries_given_gene_id = build_go_entries_given_gene_id_dict()
     print 'Reading NCBI symbols...'
-    symbol_given_gene_id = gene_id_to_symbol_dict()
+    symbol_given_gene_id = build_symbol_given_gene_id_dict()
 
     print 'Writing output...'
     missing_symbols = 0
@@ -110,7 +109,7 @@ def output_GO_GAF2_file_from_ncbi_geneids(lst_of_gene_ids, filename):
     print 'IDs with zero GO entries:', missing_go_entries
 
 
-def gene_id_given_protein_gi_dict():
+def build_gene_id_given_protein_gi_dict():
     gene_id_given_protein_gi = {}
     filename = os.path.join(ncbi_folder, 'gene2accession')
     with open(filename) as f:
@@ -121,7 +120,7 @@ def gene_id_given_protein_gi_dict():
     return gene_id_given_protein_gi
 
 
-def protein_gi_given_gene_id_dict():
+def build_protein_gi_given_gene_id_dict():
     protein_gi_given_gene_id = {}
     filename = os.path.join(ncbi_folder, 'gene2accession')
     with open(filename) as f:
