@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-GO_tools.py
+GOtools.py
 
 A set of simple tools for working with the Gene Ontology.
 """
