@@ -2,7 +2,7 @@ import sys
 import os
 from collections import defaultdict, namedtuple
 
-ncbi_folder = '/home/hawkjo/scratch/dbs/NCBI/DATA/'
+ncbi_folder = '/home/hawkjo/dbs/NCBI/DATA/'
 
 
 def build_geneid_given_refseq_rna_acc_dict():

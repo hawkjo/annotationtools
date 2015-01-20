@@ -7,7 +7,7 @@ def reduce_to_longest_isoforms(lst_of_gene_records):
     Given a list of gene records with a UCSC name as gene.name, returns a list of the longest
     isoforms.
     """
-    knownIsoformfile = '/home/hawkjo/scratch/genomes/hg19/annotation/knownIsoforms.txt'
+    knownIsoformfile = '/home/hawkjo/genomes/hg19/annotation/knownIsoforms.txt'
     ucscname2isoform_id = {}
     for line in open(knownIsoformfile):
         var = line.strip().split()
@@ -25,7 +25,7 @@ def reduce_to_longest_isoforms(lst_of_gene_records):
 
 
 def build_refseq_given_ucscname_dict():
-    knownToRefSeq_file = '/home/hawkjo/scratch/genomes/hg19/annotation/knownToRefSeq.txt'
+    knownToRefSeq_file = '/home/hawkjo/genomes/hg19/annotation/knownToRefSeq.txt'
     refseq_given_ucscname = {}
     for line in open(knownToRefSeq_file):
         var = line.strip().split()
@@ -34,7 +34,7 @@ def build_refseq_given_ucscname_dict():
 
 
 def build_ucscname_given_refseq_dict():
-    knownToRefSeq_file = '/home/hawkjo/scratch/genomes/hg19/annotation/knownToRefSeq.txt'
+    knownToRefSeq_file = '/home/hawkjo/genomes/hg19/annotation/knownToRefSeq.txt'
     ucscname_given_refseq = {}
     for line in open(knownToRefSeq_file):
         var = line.strip().split()
@@ -43,9 +43,9 @@ def build_ucscname_given_refseq_dict():
 
 
 def build_ucscname_given_ncbi_gene_id_dict():
-    from NCBItools import gene_id_to_refseq_rna_acc_list_dict
-    refseq_list_given_ncbi_id = gene_id_to_refseq_rna_acc_list_dict()
-    ucscname_given_refseq = refseq2ucscname_dict()
+    from NCBItools import build_refseq_rna_acc_given_geneid_dict
+    refseq_list_given_ncbi_id = build_refseq_rna_acc_given_geneid_dict()
+    ucscname_given_refseq = build_ucscname_given_refseq_dict()
     ucscname_given_ncbi_id = {}
     for ncbi_id, refseq_list in refseq_list_given_ncbi_id.items():
         for refseq in refseq_list:
@@ -61,3 +61,11 @@ def build_ucscname_given_ncbi_gene_id_dict():
             except KeyError:
                 pass
     return ucscname_given_ncbi_id
+
+
+def build_ncbi_gene_id_given_ucscname_dict():
+    ncbi_gene_id_given_ucscname = {}
+    for gene_id, ucscname in build_ucscname_given_ncbi_gene_id_dict().items():
+        assert ucscname not in ncbi_gene_id_given_ucscname
+        ncbi_gene_id_given_ucscname[ucscname] = gene_id
+    return ncbi_gene_id_given_ucscname
