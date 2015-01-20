@@ -69,3 +69,15 @@ def build_ncbi_gene_id_given_ucscname_dict():
         assert ucscname not in ncbi_gene_id_given_ucscname
         ncbi_gene_id_given_ucscname[ucscname] = gene_id
     return ncbi_gene_id_given_ucscname
+
+
+def build_ncbi_symbol_given_ucscname_dict():
+    from NCBItools import build_ncbi_symbol_given_id_dict
+    ncbi_symbol_given_id = build_ncbi_symbol_given_id_dict()
+    ncbi_symbol_given_ucscname = {}
+    for ucscname, gene_id in build_ncbi_gene_id_given_ucscname_dict().items():
+        try:
+            ncbi_symbol_given_ucscname[ucscname] = ncbi_symbol_given_id[gene_id]
+        except KeyError:
+            pass
+    return ncbi_symbol_given_ucscname
