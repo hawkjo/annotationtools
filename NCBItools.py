@@ -129,3 +129,14 @@ def build_protein_gi_given_gene_id_dict():
             var = line.strip().split()
             protein_gi_given_gene_id[var[1]] = var[6]
     return protein_gi_given_gene_id
+
+
+def build_symbol_given_id_dict():
+    symbol_given_id = {}
+    fname = os.path.join(ncbi_folder, 'gene_info')
+    with open(fname) as f:
+        next(f)
+        for line in f:
+            var = line.strip().split()
+            symbol_given_id[var[1]] = var[2]
+    return symbol_given_id
