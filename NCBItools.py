@@ -131,7 +131,7 @@ def build_protein_gi_given_gene_id_dict():
     return protein_gi_given_gene_id
 
 
-def build_symbol_given_id_dict():
+def build_ncbi_symbol_given_id_dict():
     symbol_given_id = {}
     fname = os.path.join(ncbi_folder, 'gene_info')
     with open(fname) as f:
